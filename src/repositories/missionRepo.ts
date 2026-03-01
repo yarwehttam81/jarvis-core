@@ -67,18 +67,23 @@ export const missionRepo = {
     return result.rows[0] || null;
   },
 
-  // ✅ M4.1 — Transactional DB-assigned stage_index
+  // 🔒 M5 — Persist agent identity transactionally
   async createStage(params: {
     mission_id: string;
+    agent_name: string;
+    agent_version: string;
     stage_name: string;
     input_json: any;
   }) {
+    if (!params.agent_name || !params.agent_version) {
+      throw new Error("agent_name and agent_version are required for stage creation");
+    }
+
     const client = await db.connect();
 
     try {
       await client.query("BEGIN");
 
-      // Lock rows for this mission to prevent race conditions
       const indexResult = await client.query(
         `
         SELECT COALESCE(MAX(stage_index), 0) + 1 AS next_index
@@ -97,15 +102,19 @@ export const missionRepo = {
           mission_id,
           stage_name,
           stage_index,
+          agent_name,
+          agent_version,
           input_json,
           status
         )
-        VALUES ($1, $2, $3, $4, 'running')
+        VALUES ($1, $2, $3, $4, $5, $6, 'running')
         `,
         [
           params.mission_id,
           params.stage_name,
           nextIndex,
+          params.agent_name,
+          params.agent_version,
           params.input_json
         ]
       );
