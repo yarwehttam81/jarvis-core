@@ -1,5 +1,5 @@
 # JARVIS CORE GOVERNANCE
-Version: 1.5
+Version: 1.7
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CURRENT SYSTEM STATE
@@ -39,8 +39,8 @@ PHASE 3 — Agent-Based Execution (Complete)
 ✔ M4 — Remove Static Stage Mapping
 ✔ M5 — Deterministic Multi-Agent Routing
 
-⬜ M6 — Replay Validation Under Agent Flow
-⬜ M7 — Slack → Orchestrator → Agent Flow Verified
+✔ M6 — Replay Validation Under Agent Flow
+✔ M7 — Slack → Orchestrator → Agent Flow Verified
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📜 COMPLETION LOG
@@ -64,3 +64,29 @@ System State After M5:
 • No implicit fallback routing
 • No hybrid behavior remains
 • Deterministic guarantees preserved
+M7 Complete — Slack → Orchestrator → Agent Flow Verified
+
+✔ Introduced deterministic Express ingress layer
+✔ Added POST /slack/events endpoint
+✔ Slack-compatible payload accepted (channel_id, thread_ts, request_type)
+✔ Mission persisted via missionService before execution
+✔ missionPipeline.run() invoked only after persistence
+✔ No stage insertion performed in ingress layer
+✔ No routing logic introduced outside pipeline
+✔ Orchestrator remains first stage via pipeline control
+✔ Ledger remains sole source of execution truth
+✔ No hidden runtime state introduced
+✔ No deterministic guarantees modified
+✔ No hybrid behavior introduced
+
+System State After M7:
+
+• Execution fully ledger-driven
+• Slack ingress deterministic and minimal
+• Orchestrator-first stage enforced via pipeline
+• Multi-agent routing remains emergent from ledger
+• Replay isolated and immutable
+• No static stage progression
+• No fallback routing paths
+• Deterministic guarantees preserved
+• Version: 1.7
