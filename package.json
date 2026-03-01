@@ -1,0 +1,30 @@
+{
+  "name": "jarvis-core",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+  "build": "tsc",
+  "dev": "ts-node-dev --respawn --transpile-only src/testPipeline.ts",
+  "start": "node dist/testPipeline.js"
+},
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@types/node": "^25.3.2",
+    "@types/pg": "^8.16.0",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@slack/bolt": "^4.6.0",
+    "axios": "^1.13.5",
+    "dotenv": "^17.3.1",
+    "pg": "^8.19.0",
+    "pgvector": "^0.2.1",
+    "uuid": "^13.0.0",
+    "zod": "^4.3.6"
+  }
+}
