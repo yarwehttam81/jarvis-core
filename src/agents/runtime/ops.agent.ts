@@ -1,15 +1,18 @@
 import { AgentExecutor } from "../interfaces/agent.executor";
-import { AgentResult } from "../interfaces/agent.types";
+import { AgentContext, AgentResult } from "../interfaces/agent.types";
 
 export class OpsAgent implements AgentExecutor {
-  readonly name = "ops";
+  public readonly name = "ops";
+  public readonly version = "1.0.0";
 
-  async execute(): Promise<AgentResult> {
+  async execute(context: AgentContext): Promise<AgentResult> {
     return {
       status: "completed",
-      output: { step: "ops executed" },
-
-      // Ledger-driven routing (terminal stage)
+      model: "internal-static",
+      prompt_version: "1.0.0",
+      output: {
+        ops_step: "ops executed"
+      },
       next_agent: null
     };
   }

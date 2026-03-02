@@ -1,15 +1,18 @@
 import { AgentExecutor } from "../interfaces/agent.executor";
-import { AgentResult } from "../interfaces/agent.types";
+import { AgentContext, AgentResult } from "../interfaces/agent.types";
 
 export class StrategyAgent implements AgentExecutor {
-  readonly name = "strategy";
+  public readonly name = "strategy";
+  public readonly version = "1.0.0";
 
-  async execute(): Promise<AgentResult> {
+  async execute(context: AgentContext): Promise<AgentResult> {
     return {
       status: "completed",
-      output: { step: "strategy executed" },
-
-      // Ledger-driven routing (matches previous static order)
+      model: "internal-static",
+      prompt_version: "1.0.0",
+      output: {
+        strategy_step: "strategy executed"
+      },
       next_agent: "builder"
     };
   }

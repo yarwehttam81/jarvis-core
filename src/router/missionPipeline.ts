@@ -3,13 +3,18 @@ import { missionRepo } from "../repositories/missionRepo";
 import { agentRegistry } from "../agents/registry/agent.registry";
 import { AgentContext } from "../agents/interfaces/agent.types";
 
+import { validateInputSchema } from "../behavioral/schemaValidator";
+import { JarvisInputSchema } from "../agents/jarvis/input.schema";
+
+import { validateOutput } from "../core/behavior/schemaValidator";
+import { OrchestratorOutputSchema } from "../agents/runtime/orchestrator.output.schema";
+
 export const missionPipeline = {
 
-  async run(mission_id: string) {
+async run(mission_id: string): Promise<void> {
 
     const allStages = await missionRepo.getStagesByMissionId(mission_id);
 
-    // 1️⃣ Resume running stage if exists
     const runningStage = allStages.find(s => s.status === "running");
 
     if (runningStage) {
@@ -25,7 +30,6 @@ export const missionPipeline = {
       return;
     }
 
-    // 2️⃣ If no stages exist, start with orchestrator
     if (allStages.length === 0) {
 
       const orchestrator = agentRegistry.get("orchestrator");
@@ -45,7 +49,6 @@ export const missionPipeline = {
       return this.run(mission_id);
     }
 
-    // 3️⃣ Otherwise, check last completed stage
     const lastCompleted = allStages
       .filter(s => s.status === "completed")
       .sort((a, b) => b.stage_index - a.stage_index)[0];
@@ -61,7 +64,6 @@ export const missionPipeline = {
       return;
     }
 
-    // 🔒 M5 — Registry validation BEFORE insertion
     const resolvedAgent = agentRegistry.get(next_agent);
 
     if (!resolvedAgent) {
@@ -97,7 +99,6 @@ async function executeStage(
     throw new Error(`Agent "${agent_name}" not found during execution`);
   }
 
-  // 🔒 Version enforcement check
   if (agent.version !== agent_version) {
     throw new Error(
       `Version mismatch for agent "${agent_name}". ` +
@@ -105,18 +106,53 @@ async function executeStage(
     );
   }
 
-  const result = await agent.execute(context);
+  // 🧠 M8 — Validate EXACT executed input (JARVIS only)
+  if (agent_name === "orchestrator") {
+    validateInputSchema(
+      JarvisInputSchema,
+      context.input,
+      {
+        agent_name,
+        agent_version,
+        mission_id,
+        stage_id: stage_index.toString()
+      }
+    );
+  }
 
-  await missionRepo.completeStage({
-    mission_id,
-    stage_index,
-    output_json: {
-      ...result.output,
-      next_agent: result.next_agent
-    }
-  });
+const result = await agent.execute(context);
 
-  await missionPipeline.run(mission_id);
+// M9 — Output Schema Enforcement (Orchestrator only)
+if (agent_name === "orchestrator") {
+  const validation = validateOutput(
+    OrchestratorOutputSchema,
+    result
+  );
+
+  if (!validation.success) {
+    await missionRepo.completeStage({
+      mission_id,
+      stage_index,
+      output_json: {
+        error: "OUTPUT_SCHEMA_VALIDATION_FAILED",
+        details: validation.errors
+      }
+    });
+
+    return; // Deterministic halt
+  }
+}
+
+await missionRepo.completeStage({
+  mission_id,
+  stage_index,
+  output_json: {
+    ...(result.output as Record<string, unknown>),
+    next_agent: result.next_agent
+  }
+});
+
+await missionPipeline.run(mission_id);
 }
 
 async function buildAgentContext(
@@ -130,11 +166,12 @@ async function buildAgentContext(
 
   const priorStageOutputs: Record<number, unknown> = {};
 
-  for (const stage of context.stages) {
-    if (stage.stage_index < stage_index && stage.output_json) {
-      priorStageOutputs[stage.stage_index] = stage.output_json;
-    }
+
+for (const stage of context.stages) {
+  if (stage.stage_index < stage_index && stage.output) {
+    priorStageOutputs[stage.stage_index] = stage.output;
   }
+}
 
   const input =
     stage_index === 1

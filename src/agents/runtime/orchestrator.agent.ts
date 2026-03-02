@@ -1,15 +1,18 @@
 import { AgentExecutor } from "../interfaces/agent.executor";
-import { AgentResult } from "../interfaces/agent.types";
+import { AgentContext, AgentResult } from "../interfaces/agent.types";
 
 export class OrchestratorAgent implements AgentExecutor {
-  readonly name = "orchestrator";
+  public readonly name = "orchestrator";
+  public readonly version = "1.0.0";
 
-  async execute(): Promise<AgentResult> {
+  async execute(context: AgentContext): Promise<AgentResult> {
     return {
       status: "completed",
-      output: { step: "orchestrator executed" },
-
-      // Ledger-driven routing (matches previous static order)
+      model: "internal-static",
+      prompt_version: "1.0.0",
+      output: {
+        mission_id: context.missionId
+      },
       next_agent: "strategy"
     };
   }

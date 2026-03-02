@@ -1,9 +1,7 @@
 import { AgentContext, AgentResult } from "./agent.types";
 
 export interface AgentExecutor {
-  readonly name: string;
-
-  execute(
-    context: AgentContext
-  ): Promise<AgentResult>;
+  name: string;
+  version: string;
+  execute(context: AgentContext): Promise<AgentResult>;
 }

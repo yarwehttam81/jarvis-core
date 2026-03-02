@@ -6,13 +6,28 @@ export interface AgentContext {
   input: unknown;
 }
 
-export interface AgentResult<T = unknown> {
+export interface AgentResult<T = Record<string, unknown>> {
   status: "completed";
+
+  /**
+   * Model identifier used for this execution.
+   * Required for deterministic replay auditing.
+   */
+  model: string;
+
+  /**
+   * Static system prompt version identifier.
+   * Required for prompt governance.
+   */
+  prompt_version: string;
+
+  /**
+   * Structured agent payload.
+   */
   output: T;
 
   /**
    * Ledger-driven routing signal.
-   * Determines next agent to execute.
    * null → mission complete
    */
   next_agent: string | null;
