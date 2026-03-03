@@ -9,6 +9,11 @@ import { JarvisInputSchema } from "../agents/jarvis/input.schema";
 import { validateOutput } from "../core/behavior/schemaValidator";
 import { OrchestratorOutputSchema } from "../agents/runtime/orchestrator.output.schema";
 
+import { FailureEnvelopeSchema } from "../behavioral/failureEnvelope.schema";
+import {
+  AgentContextSchema,
+  deepFreeze
+} from "../behavioral/schemas/AgentContextSchema";
 export const missionPipeline = {
   async run(mission_id: string): Promise<void> {
     const allStages = await missionRepo.getStagesByMissionId(mission_id);
@@ -72,6 +77,7 @@ async function executeStage(
   const context = await buildAgentContext(mission_id, stage_index);
 
   const agent = agentRegistry.get(agent_name);
+  const contract = agentRegistry.getContract(agent_name);
 
   if (agent.version !== agent_version) {
     throw new Error(
@@ -79,7 +85,47 @@ async function executeStage(
     );
   }
 
-  // M8 — Input validation (Orchestrator only)
+  async function persistFailure(
+    error_code: string,
+    error_details?: unknown
+  ) {
+    const failureEnvelope = {
+      status: "failed" as const,
+      error_code,
+      error_details,
+      agent_name,
+      agent_version,
+      stage_index,
+      failure_version: "v1" as const
+    };
+
+    const parsed = FailureEnvelopeSchema.safeParse(failureEnvelope);
+
+    if (!parsed.success) {
+      throw new Error("FailureEnvelopeSchema validation failed");
+    }
+
+    await missionRepo.completeStage({
+      mission_id,
+      stage_index,
+      output_json: parsed.data
+    });
+  }
+  // ===============================
+  // M13 — AgentContext Enforcement
+  // ===============================
+
+  const parsedContext = AgentContextSchema.safeParse(context);
+
+  if (!parsedContext.success) {
+    await persistFailure(
+      "AGENT_CONTEXT_SCHEMA_VALIDATION_FAILED",
+      parsedContext.error.flatten()
+    );
+    return;
+  }
+
+  const frozenContext = deepFreeze(parsedContext.data);
   if (agent_name === "orchestrator") {
     validateInputSchema(
       JarvisInputSchema,
@@ -93,11 +139,9 @@ async function executeStage(
     );
   }
 
-  const rawResult: AgentResult = await agent.execute(context);
-
+const rawResult: AgentResult = await agent.execute(frozenContext);
   let finalResult: AgentResult = rawResult;
 
-  // M9 + M10 — Output validation + prompt_version enforcement
   if (agent_name === "orchestrator") {
     const validation = validateOutput(
       OrchestratorOutputSchema,
@@ -105,22 +149,46 @@ async function executeStage(
     );
 
     if (!validation.success) {
-      await missionRepo.completeStage({
-        mission_id,
-        stage_index,
-        output_json: {
-          error: "OUTPUT_SCHEMA_VALIDATION_FAILED",
-          details: validation.errors
-        }
-      });
-
-      return; // Deterministic halt
+      await persistFailure(
+        "OUTPUT_SCHEMA_VALIDATION_FAILED",
+        validation.errors
+      );
+      return;
     }
 
     finalResult = validation.data;
   }
 
-  // M10 — Persist FULL behavioral envelope
+  if (!contract.allowed_models.includes(finalResult.model)) {
+    await persistFailure(
+      "MODEL_NOT_ALLOWED_BY_CONTRACT",
+      { model: finalResult.model }
+    );
+    return;
+  }
+
+  if (
+    finalResult.next_agent &&
+    !contract.allowed_next_agents.includes(finalResult.next_agent)
+  ) {
+    await persistFailure(
+      "NEXT_AGENT_NOT_ALLOWED_BY_CONTRACT",
+      { next_agent: finalResult.next_agent }
+    );
+    return;
+  }
+
+  if (finalResult.prompt_version !== contract.prompt_version) {
+    await persistFailure(
+      "PROMPT_VERSION_MISMATCH",
+      {
+        expected: contract.prompt_version,
+        received: finalResult.prompt_version
+      }
+    );
+    return;
+  }
+
   await missionRepo.completeStage({
     mission_id,
     stage_index,
