@@ -2,6 +2,9 @@ import express, { Request, Response } from "express";
 import { missionService } from "./services/missionService";
 import { missionPipeline } from "./router/missionPipeline";
 import { RequestType } from "./models/mission";
+import { inspectMission } from "./observability/missionInspector";
+import { inspectAgent } from "./observability/agentInspector";
+import { compareMissions } from "./observability/driftComparator";
 
 const app = express();
 
@@ -48,6 +51,88 @@ app.post("/slack/events", async (req: Request, res: Response) => {
     return res.status(500).json({ error: "Internal server error" });
   }
 });
+
+/**
+ * M14 — Deterministic Mission Inspection (Read-only)
+ *
+ * No mutation.
+ * No pipeline invocation.
+ * Pure ledger introspection.
+ */
+app.get("/observability/mission/:missionId", async (req: Request, res: Response) => {
+  try {
+    const { missionId } = req.params;
+
+    if (!missionId) {
+      return res.status(400).json({
+        error: "Missing missionId",
+      });
+    }
+
+    const inspection = await inspectMission(missionId);
+
+    return res.status(200).json(inspection);
+  } catch (error) {
+    return res.status(500).json({
+      error: (error as Error).message,
+    });
+  }
+});
+/**
+ * M14 — Deterministic Agent Contract Inspection (Read-only)
+ *
+ * No mutation.
+ * No execution.
+ * Pure registry introspection.
+ */
+app.get("/observability/agent/:agentName", (req: Request, res: Response) => {
+  try {
+    const { agentName } = req.params;
+
+    if (!agentName) {
+      return res.status(400).json({
+        error: "Missing agentName",
+      });
+    }
+
+    const inspection = inspectAgent(agentName);
+
+    return res.status(200).json(inspection);
+  } catch (error) {
+    return res.status(500).json({
+      error: (error as Error).message,
+    });
+  }
+});
+/**
+ * M14 — Deterministic Drift Comparison (Read-only)
+ *
+ * No mutation.
+ * No execution.
+ * Pure ledger comparison.
+ */
+app.get(
+  "/observability/drift/:missionA/:missionB",
+  async (req: Request, res: Response) => {
+    try {
+      const { missionA, missionB } = req.params;
+
+      if (!missionA || !missionB) {
+        return res.status(400).json({
+          error: "Both missionA and missionB are required",
+        });
+      }
+
+      const comparison = await compareMissions(missionA, missionB);
+
+      return res.status(200).json(comparison);
+    } catch (error) {
+      return res.status(500).json({
+        error: (error as Error).message,
+      });
+    }
+  }
+);
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
 
